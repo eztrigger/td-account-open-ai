@@ -34,25 +34,6 @@ cd td-onboarding-mac-v3
 ./start.sh
 ```
 
-On startup you'll be prompted to choose a security level:
-
-```
-🔒 Security options for public URL:
-
-  1) Open access (anyone with link can use)
-  2) Password protected (recommended)
-  3) Local only (no public URL)
-```
-
-If you choose option 2, a random password is generated:
-
-```
-🚀 READY!
-  Public:   https://a1b2-xxx.ngrok-free.app
-  User: demo / Pass: 8f3a2b1c
-
-  📋 Send the link and credentials to your tester
-```
 
 ## Edge Cases
 
