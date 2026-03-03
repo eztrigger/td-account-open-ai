@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TD Direct Investing — Account Opening Assistant (Local)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2300a650'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='bold' font-family='sans-serif'>TD</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    :root { --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: #f9fafb; }
+    @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useRef, useEffect, useCallback } = React;
+
+// ============================================================
+// TD Direct Investing — AI-Powered Account Opening Assistant
+// Uses Claude API for natural conversation
+// ============================================================
+
+const STAGES = [
+  "welcome",
+  "eligibility",
+  "account_type",
+  "personal_info",
+  "contact_info",
+  "id_verification",
+  "employment",
+  "financial",
+  "investment_profile",
+  "compliance",
+  "beneficiary",
+  "review",
+  "agreements",
+  "complete",
+];
+
+const STAGE_LABELS = {
+  welcome: "Welcome",
+  eligibility: "Eligibility",
+  account_type: "Account Type",
+  personal_info: "Personal Info",
+  contact_info: "Contact Info",
+  id_verification: "ID Verification",
+  employment: "Employment",
+  financial: "Financial Info",
+  investment_profile: "Investment Profile",
+  compliance: "Compliance",
+  beneficiary: "Beneficiary",
+  review: "Review",
+  agreements: "Agreements",
+  complete: "Complete",
+};
+
+const SYSTEM_PROMPT = `You are a friendly account opening assistant for TD Direct Investing. You chat with customers to help them open a self-directed investment account. You sound like a real human — casual, warm, efficient. Keep messages SHORT (1-3 sentences). Ask ONE question at a time.
+
+## COMPLETE DATA SCHEMA
+You must collect ALL of the following information through conversation. Track what you've collected and what's remaining.
+
+### 1. Eligibility
+- is_canadian_resident (boolean)
+- is_age_of_majority (boolean) — 18 in most provinces, 19 in BC/NB/NS/NL
+- has_existing_td_account (boolean)
+
+### 2. Account Type Selection
+- account_category: "personal" | "non_personal"
+- account_type: "cash" | "margin" | "tfsa" | "rrsp" | "fhsa" | "resp" | "rrif" | "lira" | "lif" | "spousal_rrsp" | "spousal_rrif" | "rdsp" | "usd_cash" | "usd_margin" | "active_trader_margin"
+- is_joint: boolean
+
+### 3. Personal Information
+- first_name (string)
+- last_name (string)
+- date_of_birth (YYYY-MM-DD)
+- sin (9 digits, format: XXX-XXX-XXX)
+- gender: "male" | "female" | "other" | "prefer_not_to_say"
+- marital_status: "single" | "married" | "common_law" | "divorced" | "widowed" | "separated"
+- citizenship: "canadian_citizen" | "permanent_resident" | "other"
+- country_of_citizenship (if not Canadian)
+- birth_country (important for FATCA — if US, triggers W9 requirement)
+
+### 4. Contact Information
+- email (valid email)
+- phone_home (optional)
+- phone_mobile (10-digit Canadian)
+- address_street
+- address_city
+- address_province (2-letter code: ON, BC, AB, QC, etc.)
+- address_postal_code (Canadian format: A1A 1A1)
+- mailing_address_same (boolean)
+- mailing_address (if different)
+
+### 5. ID Verification
+- primary_id_type: "drivers_license" | "passport" | "health_card"
+- primary_id_number
+- primary_id_province (for drivers license/health card)
+- primary_id_expiry (YYYY-MM-DD)
+- secondary_id_type: "credit_card" | "bank_card" | "other"
+
+### 6. Employment Information
+- employment_status: "employed" | "self_employed" | "retired" | "student" | "unemployed" | "homemaker"
+- employer_name (if employed/self-employed)
+- job_title (if employed/self-employed)
+- industry (if employed/self-employed)
+- employer_city (if employed)
+- employer_province (if employed)
+
+### 7. Financial Information
+- annual_income: "under_25k" | "25k_50k" | "50k_100k" | "100k_200k" | "over_200k"
+- net_worth: "under_25k" | "25k_100k" | "100k_500k" | "500k_1m" | "over_1m"
+- liquid_assets: "under_25k" | "25k_100k" | "100k_500k" | "over_500k"
+- fixed_assets (approximate)
+- liabilities (approximate)
+- source_of_funds: "employment" | "savings" | "inheritance" | "gift" | "business" | "investment" | "other"
+- bank_institution (for linking)
+- bank_transit_number
+- bank_account_number
+
+### 8. Investment Experience & Goals
+- knowledge_level: "none" | "basic" | "good" | "expert"
+- experience_years: number
+- experience_types: array of "stocks" | "bonds" | "mutual_funds" | "etfs" | "options" | "fixed_income" | "gics"
+- investment_objective: "safety" | "income" | "growth" | "speculation"
+- risk_tolerance: "low" | "medium" | "high"
+- time_horizon: "short_under_3y" | "medium_3_10y" | "long_over_10y"
+- trading_frequency: "rarely" | "occasionally" | "frequently" | "daily"
+
+### 9. Compliance / Regulatory
+- is_insider (boolean) — director/officer/10%+ shareholder of public company
+- is_politically_exposed_person (boolean) — PEP: head of state, senior govt official, judge, military leader, or family member of one
+- pep_details (if yes)
+- is_broker_dealer_employee (boolean)
+- broker_dealer_name (if yes)
+- third_party_trading (boolean)
+- third_party_details (if yes)
+- is_us_tax_resident (boolean) — triggers FATCA/W9
+
+### 10. Beneficiary (for registered accounts: TFSA, RRSP, FHSA, RESP, RRIF, LIRA, LIF, RDSP)
+- has_beneficiary (boolean)
+- beneficiary_name
+- beneficiary_relationship
+- beneficiary_dob
+- beneficiary_percentage (default 100)
+- beneficiary_type: "primary" | "contingent"
+
+### 11. Agreements & Consent
+- terms_accepted (boolean)
+- privacy_policy_accepted (boolean)
+- electronic_delivery_consent (boolean)
+- margin_disclosure_read (boolean, if margin account)
+- relationship_disclosure_read (boolean)
+
+## CONVERSATION STYLE — THIS IS CRITICAL
+You are texting with a customer, NOT writing an essay. Think of yourself as that one cool friend who happens to work at TD — chill, helpful, zero bullshit.
+
+VOICE & TONE:
+- You talk like a real person. Short sentences. Contractions. Sometimes fragments. Like texting a friend.
+- Match their energy — if they're joking around, joke back. If they're all business, keep it crisp.
+- Never sound like a chatbot or a corporate script. No "I'd be happy to assist you with that." No "Unfortunately." No "Please note."
+- Don't narrate what you're doing. Don't say "Let me now collect your information" — just ask the next thing.
+- React to what they say like a human would. If they tell you they're a doctor, a quick "oh nice" is fine. If they say something funny, laugh. If something's surprising, show it.
+- Use filler words sometimes: "oh", "ah", "hmm", "haha", "right", "gotcha", "cool". This makes you sound real.
+- Vary your responses. Don't start every message the same way. Mix up "Got it", "Cool", "Nice", "Sweet", "Alright", "Perfect", etc.
+- If you need to explain something, make it feel like you're letting them in on a secret, not reading a textbook.
+
+FORMAT RULES:
+- Keep each message SHORT. 1-3 sentences max. Absolutely no walls of text.
+- Ask only ONE question at a time. Wait for the answer before moving on.
+- Never use bullet points, numbered lists, or headers in your messages.
+- Never bold more than 2-3 words per message.
+- Use quick_replies generously — they make it feel faster and easier.
+- Support both English and Chinese — respond in whichever language the customer uses.
+
+WHEN ANSWERING QUESTIONS / EDGE CASES:
+- Follow every rule's factual content exactly — no exceptions. If a rule says X isn't available, X isn't available.
+- But say it in YOUR voice. Don't copy-paste the rule.
+- Keep it to one sentence if you can, then smoothly bounce back to the next question.
+- Don't over-explain or list alternatives unless they ask.
+
+GOOD examples:
+- "Got it! What's your date of birth?"
+- "Cool, TFSA it is 🙌 What's your full legal name?"
+- "Almost done — quick one, are you or anyone in your family a senior government official?"
+- "Nice, thanks. And your email?"
+- "Ah nah, futures aren't on TDDI. But stocks, ETFs, options — all good. Anyway, you a Canadian resident?"
+- "Crypto directly? Nah. But crypto ETFs yeah, basically the same thing. So what's your name?"
+- "Haha fair question — I need your SIN because CRA requires it for any registered account like a TFSA. It's encrypted and never shared. So what's yours?"
+- "Oh for sure — your address is just for account statements and tax docs. Standard stuff. What's your street address?"
+
+BAD examples (too long, too stiff, too AI):
+- "Thank you so much for providing that information! A TFSA, or Tax-Free Savings Account, is an excellent choice that allows your investments to grow completely tax-free."
+- "Unfortunately, futures trading isn't available through TD Direct Investing. We offer stocks, ETFs, mutual funds, options, GICs, and bonds."
+- "Please note that TD Direct Investing does not currently support futures trading at this time."
+- "I completely understand your concern about providing your Social Insurance Number. Rest assured that your SIN is securely encrypted..."
+- "Great question! Let me explain why we need that information."
+
+## HANDLING CUSTOMER QUESTIONS ABOUT WHY WE COLLECT INFORMATION
+Customers will often push back or ask "why do you need this?" for sensitive fields. This is totally normal. Answer honestly and briefly, then re-ask. Never get defensive. Never say "it's required" without explaining WHY.
+
+Here's what to say for each field (adapt to your voice, don't copy verbatim):
+- SIN: "CRA needs it for any registered account (TFSA, RRSP, etc.) and for tax reporting. It's encrypted on our end, totally secure."
+- Date of birth: "Gotta verify your age and identity — standard KYC stuff."
+- Gender: "Honestly it's just for the account records. You can pick 'prefer not to say' if you want."
+- Marital status: "It can affect things like spousal RRSP options and beneficiary rules."
+- Employment info: "Regulatory thing — all brokerages have to ask. Helps with anti-money-laundering compliance."
+- Employer name / address: "IIROC requires it. Just a formality."
+- Income / net worth: "Helps us make sure the account type fits your situation. We're not judging."
+- Investment knowledge / experience: "It's a 'know your client' rule — we need to make sure you're comfortable with the risks of what you're trading."
+- Insider status: "If you're an insider at a public company, trades in that stock need to be tracked. Just a regulatory thing."
+- PEP status: "It's an anti-corruption regulation. Every bank in Canada has to ask this."
+- Address: "For account statements and tax documents. Standard stuff."
+- Phone / email: "So TD can reach you about your account — security alerts, trade confirmations, that sort of thing."
+- Beneficiary: "This is who gets the account if something happens to you. You can skip it now and add one later."
+- ID documents: "Identity verification — we need to confirm you are who you say you are. Government-issued photo ID."
+- Bank account for funding: "To link your bank account for deposits and withdrawals."
+- Risk tolerance: "So we can flag if you're about to do something that doesn't match your profile. It's a protection thing."
+- Tax residency: "CRA and international tax agreements (like FATCA) require us to ask."
+- Citizenship: "For tax reporting purposes and to check if any international regulations apply."
+
+If they're STILL reluctant after your explanation:
+- Acknowledge their concern: "Totally get it, privacy matters."
+- Clarify it's a regulatory requirement if applicable: "Wish I could skip it, but it's a legal thing — every brokerage in Canada has to collect this."
+- Offer to come back to it: "We can circle back to this one later if you want, and do the other stuff first."
+- Never pressure them. Never guilt trip.
+
+## OTHER RULES
+- Validate formats: SIN (9 digits), postal code (A1A 1A1), phone (10 digits), email (@). If wrong format, just ask again casually — "Hmm, that doesn't look right. SIN should be 9 digits, like 123-456-789."
+- If the customer is unsure about account type, ask what their goal is, then suggest ONE option.
+- For compliance questions, don't make it sound scary — keep it super casual. "Quick one —" or "Oh almost forgot —" works.
+- For SIN, always give a one-line reason when asking. Don't just say "What's your SIN?" without context.
+
+## BRANCHING LOGIC
+- Non-Canadian resident → cannot open online, suggest visiting branch
+- Under age of majority → cannot open account
+- Account type = margin → must add margin risk disclosure
+- Account type = registered (TFSA/RRSP/FHSA/RESP/RRIF/LIRA/LIF/RDSP) → ask beneficiary
+- Joint account → need second person's full information
+- Birth country = US or is_us_tax_resident = true → flag FATCA, need W9
+- is_insider = true → need company name and ticker
+- is_pep = true → need details
+- is_broker_dealer_employee = true → need firm name
+
+## HANDLING VAGUE / CASUAL / OFF-TOPIC RESPONSES
+Customers may respond casually, vaguely, with slang, or go off-topic. You must ALWAYS handle this gracefully:
+- If the response is vague but you can infer meaning, extract what you can and confirm ("Just to confirm, you mean X?")
+- If you truly cannot understand, rephrase with clearer options
+- If the customer goes off-topic or asks a question, answer it helpfully then guide back
+- If the customer expresses frustration, acknowledge it warmly and simplify
+- If they ask "why so many questions" — "Haha I know right? Blame the regulators 😅 Almost there though!"
+- NEVER fail to produce a valid response. Even for the most confusing input, always generate a helpful reply.
+Examples of casual inputs you must handle well:
+- "no way, I have no limits on TFSA" → they likely mean they have lots of TFSA room. Clarify.
+- "idk lol" → rephrase the question with simple options
+- "whatever works" → pick a sensible default and confirm
+- "yeah sure" → take it as confirmation of the last question
+- "nah" → take it as "no"
+- "this is sketchy" → reassure warmly about security, don't get defensive
+- "is this safe?" → "Yeah 100% — everything's encrypted, and your account is protected by CIPF up to $1M."
+- "why do you need all this" → "I know it feels like a lot! It's all regulatory stuff that every brokerage has to collect. We're almost done though."
+
+{{EDGE_CASES}}
+
+## RESPONSE FORMAT
+CRITICAL: You MUST respond with a SINGLE valid JSON object. NO text before or after it. NO markdown code fences. NO explanations outside the JSON. Your entire response must be parseable by JSON.parse().
+
+The JSON object must have exactly these keys:
+{
+  "message": "Your conversational response (use \\n for line breaks, **bold** for emphasis)",
+  "current_stage": "stage_id",
+  "collected_data": {},
+  "quick_replies": ["option1", "option2"] or null,
+  "is_complete": false
+}
+
+Rules:
+- "message": Always non-empty. This is what the customer sees.
+- "current_stage": One of: welcome, eligibility, account_type, personal_info, contact_info, id_verification, employment, financial, investment_profile, compliance, beneficiary, review, agreements, complete. Keep it at the current stage if no new data was collected.
+- "collected_data": FLAT key-value pairs using the exact field names from the schema above. Only include NEW data from the customer's latest message. Use {} if nothing new was collected.
+- "quick_replies": Provide 2-4 short options when helpful. Use null for free-text questions.
+- "is_complete": Only true when ALL data is collected and agreements accepted.
+
+When current_stage is "review", include a nicely formatted summary of ALL collected data in your message.
+When current_stage is "complete", set is_complete to true.
+
+REMEMBER: Your ENTIRE response is ONLY the JSON object. Nothing else.`;
+
+function initialFormData() {
+  return {
+    eligibility: {},
+    account_type: {},
+    personal_info: {},
+    contact_info: {},
+    id_verification: {},
+    employment: {},
+    financial: {},
+    investment_profile: {},
+    compliance: {},
+    beneficiary: {},
+    agreements: {},
+  };
+}
+
+// ─── Field-to-section mapping ───────────────────────────────
+const FIELD_SECTION_MAP = {
+  is_canadian_resident: "eligibility", is_age_of_majority: "eligibility", has_existing_td_account: "eligibility", province: "eligibility",
+  account_category: "account_type", account_type: "account_type", is_joint: "account_type",
+  first_name: "personal_info", last_name: "personal_info", date_of_birth: "personal_info", sin: "personal_info", gender: "personal_info", marital_status: "personal_info", citizenship: "personal_info", country_of_citizenship: "personal_info", birth_country: "personal_info",
+  email: "contact_info", phone_home: "contact_info", phone_mobile: "contact_info", address_street: "contact_info", address_city: "contact_info", address_province: "contact_info", address_postal_code: "contact_info", mailing_address_same: "contact_info", mailing_address: "contact_info",
+  primary_id_type: "id_verification", primary_id_number: "id_verification", primary_id_province: "id_verification", primary_id_expiry: "id_verification", secondary_id_type: "id_verification",
+  employment_status: "employment", employer_name: "employment", job_title: "employment", industry: "employment", employer_city: "employment", employer_province: "employment",
+  annual_income: "financial", net_worth: "financial", liquid_assets: "financial", fixed_assets: "financial", liabilities: "financial", source_of_funds: "financial", bank_institution: "financial", bank_transit_number: "financial", bank_account_number: "financial",
+  knowledge_level: "investment_profile", experience_years: "investment_profile", experience_types: "investment_profile", investment_objective: "investment_profile", risk_tolerance: "investment_profile", time_horizon: "investment_profile", trading_frequency: "investment_profile",
+  is_insider: "compliance", insider_company_name: "compliance", insider_ticker_symbol: "compliance", is_politically_exposed_person: "compliance", pep_details: "compliance", is_broker_dealer_employee: "compliance", broker_dealer_name: "compliance", third_party_trading: "compliance", third_party_details: "compliance", is_us_tax_resident: "compliance",
+  has_beneficiary: "beneficiary", beneficiary_name: "beneficiary", beneficiary_relationship: "beneficiary", beneficiary_dob: "beneficiary", beneficiary_percentage: "beneficiary", beneficiary_type: "beneficiary",
+  terms_accepted: "agreements", privacy_policy_accepted: "agreements", electronic_delivery_consent: "agreements", margin_disclosure_read: "agreements", relationship_disclosure_read: "agreements",
+};
+
+function mergeFormData(prev, newData) {
+  if (!newData || typeof newData !== "object") return prev;
+  const updated = JSON.parse(JSON.stringify(prev));
+  for (const [key, val] of Object.entries(newData)) {
+    if (val === "" || val === null || val === undefined) continue;
+    const section = FIELD_SECTION_MAP[key];
+    if (section && updated[section]) {
+      updated[section][key] = val;
+    } else if (updated[key] && typeof updated[key] === "object" && typeof val === "object") {
+      updated[key] = { ...updated[key], ...val };
+    }
+  }
+  return updated;
+}
+
+// ─── Robust JSON extractor ──────────────────────────────────
+function extractJSON(text) {
+  // Try direct parse first
+  try { return JSON.parse(text); } catch {}
+
+  // Strip markdown fences
+  let clean = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  try { return JSON.parse(clean); } catch {}
+
+  // Try to find JSON object in the text using brace matching
+  const firstBrace = clean.indexOf("{");
+  if (firstBrace >= 0) {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = firstBrace; i < clean.length; i++) {
+      const ch = clean[i];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      if (ch === "}") { depth--; if (depth === 0) { try { return JSON.parse(clean.substring(firstBrace, i + 1)); } catch { break; } } }
+    }
+  }
+
+  // Last resort: try to find any {...} with regex
+  const match = clean.match(/\{[\s\S]*"message"[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]); } catch {} }
+
+  return null;
+}
+
+// ─── Claude API call with retry ─────────────────────────────
+async function callClaude(history, formData, retryCount = 0) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: SYSTEM_PROMPT + "\n\n## CURRENT COLLECTED DATA STATE\n```json\n" + JSON.stringify(formData, null, 2) + "\n```",
+      messages: history,
+    }),
+  });
+  const data = await response.json();
+  const text = data.content?.map((b) => (b.type === "text" ? b.text : "")).join("") || "";
+
+  const parsed = extractJSON(text);
+  if (parsed && parsed.message) {
+    return parsed;
+  }
+
+  // Retry once with a stronger nudge
+  if (retryCount < 1) {
+    console.warn("JSON parse failed, retrying. Raw:", text.substring(0, 200));
+    const retryHistory = [
+      ...history,
+      { role: "assistant", content: text },
+      { role: "user", content: "SYSTEM: Your previous response was not valid JSON. Please respond with ONLY a JSON object with keys: message, current_stage, collected_data, quick_replies, is_complete. No other text." },
+    ];
+    return callClaude(retryHistory, formData, retryCount + 1);
+  }
+
+  // If retry also failed, construct a graceful fallback
+  console.error("JSON parse failed after retry. Raw:", text.substring(0, 300));
+
+  // Try to salvage the message text even if JSON is broken
+  const msgMatch = text.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const fallbackMsg = msgMatch
+    ? msgMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"')
+    : "I'd be happy to help! Could you tell me a bit more about what you're looking for?";
+
+  return {
+    message: fallbackMsg,
+    current_stage: null,
+    collected_data: {},
+    quick_replies: null,
+    is_complete: false,
+  };
+}
+
+// ─── UI Components ──────────────────────────────────────────
+
+function ProgressBar({ stage }) {
+  const idx = STAGES.indexOf(stage);
+  const pct = idx < 0 ? 0 : Math.min(100, Math.round(((idx + 1) / STAGES.length) * 100));
+  return (
+    <div style={{ padding: "0 20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#6b7280", marginBottom: 4, fontFamily: "var(--font)" }}>
+        <span style={{ fontWeight: 500 }}>{STAGE_LABELS[stage] || "Processing"}</span>
+        <span>{pct}%</span>
+      </div>
+      <div style={{ height: 4, background: "#e5e7eb", borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #00a650, #008a44)", borderRadius: 2, transition: "width 0.6s cubic-bezier(.4,0,.2,1)" }} />
+      </div>
+      {/* Mini stage dots */}
+      <div style={{ display: "flex", gap: 3, marginTop: 6, justifyContent: "center" }}>
+        {STAGES.map((s, i) => (
+          <div key={s} style={{ width: i <= idx ? 8 : 5, height: 5, borderRadius: 3, background: i <= idx ? "#00a650" : i === idx + 1 ? "#bbf7d0" : "#e5e7eb", transition: "all 0.3s" }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Message({ role, text, quickReplies, onQuickReply, isLatest }) {
+  const isBot = role === "bot";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: isBot ? "flex-start" : "flex-end", marginBottom: 14, maxWidth: "88%", alignSelf: isBot ? "flex-start" : "flex-end", animation: "fadeSlideIn 0.3s ease-out" }}>
+      {isBot && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 13, background: "#00a650", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 700, fontFamily: "var(--font)", letterSpacing: 0.5 }}>TD</div>
+          <span style={{ fontSize: 11, color: "#9ca3af", fontFamily: "var(--font)" }}>TD Assistant</span>
+        </div>
+      )}
+      <div
+        style={{
+          background: isBot ? "#ffffff" : "#00a650",
+          color: isBot ? "#1f2937" : "#fff",
+          padding: "12px 16px",
+          borderRadius: isBot ? "4px 16px 16px 16px" : "16px 4px 16px 16px",
+          fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap",
+          boxShadow: isBot ? "0 1px 4px rgba(0,0,0,0.05)" : "none",
+          border: isBot ? "1px solid #e5e7eb" : "none",
+          fontFamily: "var(--font)",
+        }}
+        dangerouslySetInnerHTML={{
+          __html: text
+            .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+            .replace(/_(.*?)_/g, "<em style='opacity:0.7;font-size:12px'>$1</em>")
+            .replace(/\n/g, "<br/>"),
+        }}
+      />
+      {isLatest && quickReplies && quickReplies.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {quickReplies.map((qr, i) => (
+            <button key={i} onClick={() => onQuickReply(qr)}
+              style={{ background: "#f0fdf4", color: "#00a650", border: "1.5px solid #bbf7d0", borderRadius: 20, padding: "7px 16px", fontSize: 13, cursor: "pointer", fontFamily: "var(--font)", fontWeight: 500, transition: "all 0.15s ease" }}
+              onMouseOver={(e) => { e.target.style.background = "#00a650"; e.target.style.color = "#fff"; e.target.style.borderColor = "#00a650"; }}
+              onMouseOut={(e) => { e.target.style.background = "#f0fdf4"; e.target.style.color = "#00a650"; e.target.style.borderColor = "#bbf7d0"; }}
+            >{qr}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 0", alignSelf: "flex-start" }}>
+      <div style={{ width: 26, height: 26, borderRadius: 13, background: "#00a650", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 700, fontFamily: "var(--font)" }}>TD</div>
+      <div style={{ display: "flex", gap: 4, padding: "12px 18px", background: "#fff", borderRadius: "4px 16px 16px 16px", border: "1px solid #e5e7eb" }}>
+        {[0, 1, 2].map((i) => (<div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#9ca3af", animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite` }} />))}
+      </div>
+    </div>
+  );
+}
+
+function DataPanel({ formData }) {
+  const sectionNames = {
+    eligibility: "✅ Eligibility", account_type: "📊 Account Type", personal_info: "👤 Personal Info",
+    contact_info: "📬 Contact Info", id_verification: "🪪 ID Verification", employment: "💼 Employment",
+    financial: "💰 Financial", investment_profile: "📈 Investment Profile", compliance: "⚖️ Compliance",
+    beneficiary: "👥 Beneficiary", agreements: "📝 Agreements",
+  };
+  const filtered = {};
+  for (const [section, data] of Object.entries(formData)) {
+    if (typeof data === "object") {
+      const nonEmpty = {};
+      for (const [k, v] of Object.entries(data)) {
+        if (v !== "" && v !== null && v !== undefined) nonEmpty[k] = v;
+      }
+      if (Object.keys(nonEmpty).length > 0) filtered[section] = nonEmpty;
+    }
+  }
+  return (
+    <div>
+      {Object.keys(filtered).length === 0 ? (
+        <div style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", padding: 20 }}>No data collected yet</div>
+      ) : (
+        Object.entries(filtered).map(([section, data]) => (
+          <div key={section} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", marginBottom: 4 }}>{sectionNames[section] || section}</div>
+            {Object.entries(data).map(([k, v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid #f3f4f6", fontSize: 11 }}>
+                <span style={{ color: "#6b7280" }}>{k.replace(/_/g, " ")}</span>
+                <span style={{ color: "#111827", fontWeight: 500, maxWidth: 130, textAlign: "right", wordBreak: "break-all" }}>
+                  {k === "sin" ? "•••-•••-" + String(v).slice(-3) : typeof v === "boolean" ? (v ? "Yes" : "No") : Array.isArray(v) ? v.join(", ") : String(v)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ─── Main App ───────────────────────────────────────────────
+const App = function TDOnboardingChat() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [stage, setStage] = useState("welcome");
+  const [formData, setFormData] = useState(initialFormData());
+  const [loading, setLoading] = useState(false);
+  const [latestQR, setLatestQR] = useState(null);
+  const [started, setStarted] = useState(false);
+  const [showData, setShowData] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+  useEffect(() => { if (!loading && inputRef.current) inputRef.current.focus(); }, [loading]);
+
+  const processResponse = useCallback((result) => {
+    if (result.current_stage) setStage(result.current_stage);
+    if (result.collected_data && Object.keys(result.collected_data).length > 0) {
+      setFormData((prev) => mergeFormData(prev, result.collected_data));
+    }
+    if (result.is_complete) setIsComplete(true);
+    setMessages((prev) => [...prev, { role: "bot", text: result.message }]);
+    setLatestQR(result.quick_replies || null);
+  }, []);
+
+  const sendMessage = useCallback(async (allMessages) => {
+    setLoading(true);
+    setLatestQR(null);
+    try {
+      const history = allMessages.map((m) => ({
+        role: m.role === "bot" ? "assistant" : "user",
+        content: m.text,
+      }));
+      const result = await callClaude(history, formData);
+      processResponse(result);
+    } catch (err) {
+      console.error("Error:", err);
+      setMessages((prev) => [...prev, { role: "bot", text: "I'm sorry, I encountered a brief issue. Could you try again?" }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [formData, processResponse]);
+
+  const handleStart = useCallback(async () => {
+    setStarted(true);
+    const initMsg = [{ role: "user", text: "Hi, I'd like to open a TD Direct Investing account." }];
+    setMessages(initMsg);
+    await sendMessage(initMsg);
+  }, [sendMessage]);
+
+  const handleSend = useCallback(async (text) => {
+    const trimmed = (text || input).trim();
+    if (!trimmed || loading) return;
+    setInput("");
+    const newMessages = [...messages, { role: "user", text: trimmed }];
+    setMessages(newMessages);
+    setLatestQR(null);
+    await sendMessage(newMessages);
+  }, [input, loading, messages, sendMessage]);
+
+  // ─── Welcome screen ─────────────────────────────
+  if (!started) {
+    return (
+      <>
+        <style>{`:root{--font:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif}@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}`}</style>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+        <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "linear-gradient(160deg, #f0fdf4 0%, #ecfdf5 40%, #dcfce7 100%)", fontFamily: "var(--font)", padding: 24 }}>
+          <div style={{ textAlign: "center", maxWidth: 460 }}>
+            <div style={{ width: 72, height: 72, borderRadius: 20, background: "#00a650", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", boxShadow: "0 8px 32px rgba(0,166,80,0.25)" }}>
+              <span style={{ fontSize: 28, fontWeight: 700, color: "#fff", letterSpacing: 1 }}>TD</span>
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 700, color: "#111827", margin: "0 0 8px" }}>TD Direct Investing</h1>
+            <p style={{ fontSize: 15, color: "#6b7280", margin: "0 0 32px", lineHeight: 1.55 }}>Open your self-directed investment account in minutes through a simple conversation — powered by AI.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32, textAlign: "left" }}>
+              {[["🕐", "Takes about 10 minutes"], ["📄", "Have your ID and SIN ready"], ["🔒", "Your information is encrypted & secure"], ["💳", "No minimum deposit required"], ["🤖", "AI-powered — ask questions anytime"]].map(([icon, text], i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb" }}>
+                  <span style={{ fontSize: 18 }}>{icon}</span>
+                  <span style={{ fontSize: 13, color: "#374151" }}>{text}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={handleStart}
+              style={{ width: "100%", padding: "16px 32px", background: "#00a650", color: "#fff", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", boxShadow: "0 4px 16px rgba(0,166,80,0.3)", transition: "transform 0.15s, box-shadow 0.15s" }}
+              onMouseOver={(e) => { e.target.style.transform = "translateY(-1px)"; e.target.style.boxShadow = "0 6px 24px rgba(0,166,80,0.35)"; }}
+              onMouseOut={(e) => { e.target.style.transform = "translateY(0)"; e.target.style.boxShadow = "0 4px 16px rgba(0,166,80,0.3)"; }}
+            >Get Started</button>
+            <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 16 }}>Demo prototype — not affiliated with TD Bank Group.</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Chat screen ────────────────────────────────
+  return (
+    <>
+      <style>{`:root{--font:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif}*{box-sizing:border-box}@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}`}</style>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f9fafb", fontFamily: "var(--font)" }}>
+        {/* Header */}
+        <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "#00a650", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff", fontWeight: 700, letterSpacing: 0.5 }}>TD</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Account Opening Assistant</div>
+              <div style={{ fontSize: 11, color: loading ? "#f59e0b" : "#00a650", fontWeight: 500 }}>{loading ? "● Thinking..." : "● Online"}</div>
+            </div>
+          </div>
+          <button onClick={() => setShowData(!showData)}
+            style={{ fontSize: 12, color: showData ? "#00a650" : "#6b7280", background: showData ? "#f0fdf4" : "#f3f4f6", border: `1px solid ${showData ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "var(--font)", fontWeight: 500 }}
+          >{showData ? "✕ Hide Data" : "📊 Show Data"}</button>
+        </div>
+
+        {/* Progress */}
+        <div style={{ background: "#fff", paddingTop: 8, paddingBottom: 10, borderBottom: "1px solid #f3f4f6", flexShrink: 0 }}>
+          <ProgressBar stage={stage} />
+        </div>
+
+        {/* Main area */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          {/* Chat */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column" }}>
+              {messages.map((m, i) => (
+                <Message key={i} role={m.role === "bot" ? "bot" : "user"} text={m.text} quickReplies={latestQR} onQuickReply={handleSend} isLatest={i === messages.length - 1 && m.role === "bot"} />
+              ))}
+              {loading && <TypingIndicator />}
+              <div ref={messagesEndRef} />
+            </div>
+            {/* Input */}
+            {!isComplete && (
+              <div style={{ padding: "10px 20px 14px", background: "#fff", borderTop: "1px solid #e5e7eb", flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={loading ? "Waiting for response..." : "Type your answer..."} disabled={loading}
+                    style={{ flex: 1, padding: "12px 16px", border: "1.5px solid #d1d5db", borderRadius: 12, fontSize: 14, outline: "none", fontFamily: "var(--font)", transition: "border-color 0.15s", opacity: loading ? 0.5 : 1 }}
+                    onFocus={(e) => (e.target.style.borderColor = "#00a650")}
+                    onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
+                  />
+                  <button onClick={() => handleSend()} disabled={loading || !input.trim()}
+                    style={{ padding: "12px 20px", background: loading || !input.trim() ? "#9ca3af" : "#00a650", color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: loading || !input.trim() ? "not-allowed" : "pointer", fontFamily: "var(--font)", minWidth: 72, transition: "background 0.15s" }}
+                  >{loading ? "..." : "Send"}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Data panel */}
+          {showData && (
+            <div style={{ width: 300, borderLeft: "1px solid #e5e7eb", background: "#fff", overflowY: "auto", padding: 16, flexShrink: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Collected Data</div>
+              <DataPanel formData={formData} />
+              <details style={{ marginTop: 16 }}>
+                <summary style={{ fontSize: 11, color: "#9ca3af", cursor: "pointer" }}>Show raw JSON</summary>
+                <pre style={{ fontSize: 10, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4, marginTop: 8, fontFamily: "'SF Mono', monospace", background: "#f9fafb", padding: 8, borderRadius: 6 }}>
+                  {JSON.stringify(formData, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>

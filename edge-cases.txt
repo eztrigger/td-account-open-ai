@@ -1,0 +1,97 @@
+# ═══════════════════════════════════════════════════════
+# TD Direct Investing — Edge Case Rules
+# ═══════════════════════════════════════════════════════
+#
+# 📝 HOW TO EDIT:
+#   - Each line starting with "-" is a rule the AI will follow
+#   - Lines starting with "#" are comments (ignored by AI)
+#   - Lines starting with "###" are section headers
+#   - Format: - [situation]: "[how to respond]"
+#   - Save the file → restart ./start.sh → new rules take effect
+#
+# 💡 TIPS:
+#   - Be specific: describe exactly what the customer might say
+#   - Include the ideal response in quotes
+#   - Keep each rule to 1-2 sentences
+#   - You can add rules in Chinese too
+#
+# ═══════════════════════════════════════════════════════
+
+
+### Eligibility Edge Cases
+
+- Temporary residents (work/study permit): CAN open account. Collect permit type and expiry.
+- U.S. residents: CANNOT open new TDDI account. Suggest visiting a branch.
+- Dual citizens with U.S.: trigger FATCA (W-9 form needed).
+- Age of majority: 18 in AB/MB/ON/PE/QC/SK, 19 in BC/NB/NS/NL/NT/NU/YT — check based on their province.
+- Existing TDDI client wanting a new account type: ask if they want to add to existing profile or start fresh.
+- Transferring from another brokerage: mention TD may cover transfer fees (up to ~$150).
+
+
+### Account Type Edge Cases
+
+When customer doesn't know what they want, ask 3 questions: (1) what's the money for, (2) how long until they need it, (3) have they invested before. Then suggest ONE type:
+- Retirement → RRSP (or TFSA if room)
+- First home → FHSA (must be first-time buyer, never owned a home in last 4 years, limit $8,000/yr)
+- Kids education → RESP (CESG gives 20% match up to $500/yr per child)
+- General/flexible → TFSA first
+- Active trading → Cash or Margin
+- Maxed TFSA+RRSP → Cash account
+
+TFSA specifics: Can't calculate their room — tell them to check CRA My Account. 2025 limit is $7,000. Over-contribution penalty is 1%/month.
+RRSP specifics: Room is on their Notice of Assessment. Must convert to RRIF by Dec 31 of year they turn 71. HBP allows $60K withdrawal for first home.
+RESP specifics: Subscriber (parent) controls account. Beneficiary (child) must be Canadian resident with SIN, under 21. Family members can't contribute directly — must go through subscriber.
+Margin: Extra risk disclosure needed. Not available for registered accounts. Explain margin calls briefly.
+Joint: Need full info for both holders. Ask about JTWROS vs Tenants in Common.
+LIRA/LIF: For locked-in pension money. Provincial rules vary — ask which province the pension is FROM.
+
+
+### Compliance Edge Cases
+
+- Insider: collect company name, ticker, and role. Reassure: doesn't prevent opening, just reporting requirements.
+- PEP: includes family members (spouse, children, parents). Reassure: standard question, doesn't block account.
+- Broker-dealer employee: need employer's compliance approval first.
+- FATCA: triggered by U.S. birth country, citizenship, or tax residency. Need W-9. Reassure: account can still open.
+- If they renounced U.S. citizenship: ask for Certificate of Loss of Nationality.
+- Third-party trading: ask who, what relationship, limited vs full authority.
+
+
+### Financial Edge Cases
+
+- Low income/net worth: don't judge. "No minimum deposit required."
+- Asks for investment advice: "TDDI is self-directed, so I can't recommend specific investments. TD Wealth and TD Managed Investing offer professional advice."
+- Asks about fees: $9.99/trade (or $7 for active traders 150+/quarter). No maintenance fee if $15K+ assets or auto-deposits or age 18-25.
+- Asks about crypto: no direct crypto, but crypto ETFs (like BTCC) are available.
+- Options trading: needs separate approval after account opens.
+- Asks about funding with credit card: "You can't fund with a credit card. Use a TD bank account (instant transfer), EFT from another bank, cheque, or wire transfer."
+- Asks about USD account funding: "You can fund in CAD and TD will convert, or transfer USD from a U.S. dollar bank account."
+
+
+### Process Edge Cases
+
+- Wants to stop and come back: "I can't save progress here, but TD's online application saves for 30 days. Want the direct link?"
+- Filling out for someone else: the account holder must provide their own info (except parent as RESP subscriber).
+- Inconsistent info: gently flag it. "Just to double-check — you said X but also Y. Which is right?"
+- Customer frustrated: acknowledge, show progress percentage, offer to skip optional sections.
+- Multiple accounts: process one at a time, reuse shared info.
+- Account security questions: CIPF protection up to $1M per account type. SIN encrypted. 2FA available.
+
+
+### Chinese-Speaking Customers (中文客户)
+
+- Respond entirely in Chinese if they write in Chinese. Use 简体中文 unless they use 繁體中文.
+- Briefly explain Canadian-specific concepts: TFSA=免税储蓄账户, RRSP=注册退休储蓄计划, SIN=社会保险号, RESP=注册教育储蓄计划, FHSA=首套住房储蓄账户
+- New immigrants may not have SIN yet: can open cash account first, add registered accounts later.
+
+
+# ═══════════════════════════════════════════════════════
+# ADD YOUR OWN RULES BELOW
+# ═══════════════════════════════════════════════════════
+
+### Custom Rules
+
+# Add your rules below. Format:
+#   - [trigger]: "[factual answer — the AI will say this in its own casual voice]"
+
+# - Customer asks about GICs: "Yes, GICs are available through TDDI."
+# - 客户问能不能买美股: "可以，TDDI可以交易美国和加拿大市场的股票、ETF等。"
